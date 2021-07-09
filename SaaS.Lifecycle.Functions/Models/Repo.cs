@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Linq;
+using System.Text.Json.Serialization;
 
 namespace SaaS.Lifecycle.Functions.Models
 {
@@ -27,5 +28,7 @@ namespace SaaS.Lifecycle.Functions.Models
 
         [JsonPropertyName("owner")]
         public RepoOwner Owner { get; set; }
+
+        public bool IsCandidate() => (Topics?.Contains(CandidateRepo.OptInLabel) == true);
     }
 }

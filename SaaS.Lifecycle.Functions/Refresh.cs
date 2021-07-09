@@ -24,84 +24,136 @@ namespace SaaS.Lifecycle.Functions
             const string apiEtagMetadataName = "gh_api_etag";
             const string mapBlobName = "repo_map.json";
 
-            var pat = Environment.GetEnvironmentVariable("GitHubPat");
-            var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
-            var containerName = Environment.GetEnvironmentVariable("RepoMapStorageContainerName");
-            var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
-
-            // Decide whether or not we need to refresh our repo map by checking to see whether the 
-            // repo map is present or the etag associated with the repo map is stale...
-
-            string apiEtag = null;
-
-            var serviceClient = new BlobServiceClient(storageConnString);
-            var containerClient = serviceClient.GetBlobContainerClient(containerName);
-            var blobClient = containerClient.GetBlobClient(mapBlobName);
-
-            if (await blobClient.ExistsAsync())
+            try
             {
-                log.LogDebug($"Loading cached repo map [{containerName}/{mapBlobName}]...");
+                // Grab the settings we're going to need to do this...
 
-                var blobProperties = (await blobClient.GetPropertiesAsync()).Value;
+                var pat = Environment.GetEnvironmentVariable("GitHubPat");
+                var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
+                var containerName = Environment.GetEnvironmentVariable("RepoMapStorageContainerName");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
 
-                if (blobProperties.Metadata.ContainsKey(apiEtagMetadataName))
+                // Try to pull an existing repo map from blob storage...
+
+                string apiEtag = null;
+
+                var serviceClient = new BlobServiceClient(storageConnString);
+                var containerClient = serviceClient.GetBlobContainerClient(containerName);
+                var blobClient = containerClient.GetBlobClient(mapBlobName);
+
+                if (await blobClient.ExistsAsync())
                 {
-                    apiEtag = blobProperties.Metadata[apiEtagMetadataName];
+                    log.LogDebug($"Loading cached repo map from [{containerName}/{mapBlobName}]...");
 
-                    log.LogDebug($"Cached repo map [{containerName}/{mapBlobName}] etag is [{apiEtag}].");
-                }
-            }
+                    var blobProperties = (await blobClient.GetPropertiesAsync()).Value;
 
-            // See if we have an updated repo list to load...
-
-            var repos = new List<Repo>();
-
-            using (var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") })
-            {
-                httpClient.DefaultRequestHeaders.Clear();
-                httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
-                httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
-
-                if (!string.IsNullOrEmpty(apiEtag))
-                {
-                    // If we have an etag, use it...
-
-                    httpClient.DefaultRequestHeaders.Add("If-None-Match", apiEtag);
-                }
-
-                for (int pageIndex = 1; ; pageIndex++)
-                {
-                    log.LogDebug($"Requesting page [{pageIndex}] of repos owned by [{repoOwner}] from GitHub API...");
-
-                    var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/users/{repoOwner}/repos?page={pageIndex}&per_page={apiPageSize}");
-                    var httpResponse = await httpClient.SendAsync(httpRequest);
-
-                    // Nothing's been modified. We're done here...
-
-                    if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotModified) return;
-
-                    httpResponse.EnsureSuccessStatusCode();
-
-                    if (pageIndex == 1 && httpResponse.Headers.Contains(apiEtagHeaderName))
+                    if (blobProperties.Metadata.ContainsKey(apiEtagMetadataName))
                     {
-                        apiEtag = httpResponse.Headers.GetValues(apiEtagHeaderName).First();
+                        apiEtag = blobProperties.Metadata[apiEtagMetadataName];
+
+                        log.LogDebug($"Cached repo map [{containerName}/{mapBlobName}] GitHub API ETag is [{apiEtag}].");
                     }
-
-                    using (var responseStream = await httpResponse.Content.ReadAsStreamAsync())
+                    else
                     {
-                        var pageRepos = await JsonSerializer.DeserializeAsync<IList<Repo>>(responseStream);
-
-                        repos.AddRange(pageRepos);
-
-                        // Check to see if this is the end of the list...
-
-                        if (pageRepos.Count < apiPageSize) break;
+                        log.LogWarning($"Cached repo map [{containerName}/{mapBlobName}] has no associated GitHub API ETag.");
                     }
                 }
-            }
+                else
+                {
+                    log.LogWarning("Cached repo map not found.");
+                }
 
-            await blobClient.UploadAsync(new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(repos))), overwrite: true);
-            await blobClient.SetMetadataAsync(new Dictionary<string, string> { [apiEtagMetadataName] = apiEtag });
+                var repoMap = new List<CandidateRepo>();
+
+                log.LogDebug("Refreshing repo map...");
+
+                using (var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") })
+                {
+                    httpClient.DefaultRequestHeaders.Clear();
+                    httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
+                    httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
+
+                    if (!string.IsNullOrEmpty(apiEtag))
+                    {
+                        httpClient.DefaultRequestHeaders.Add("If-None-Match", apiEtag);
+                    }
+
+                    // Page through all the repos and grab the ones that we care about...
+
+                    for (int pageIndex = 1; ; pageIndex++)
+                    {
+                        log.LogDebug($"Getting page [{pageIndex}] of [{repoOwner}]'s repos from GitHub API...");
+
+                        // TODO: Sprinkle in some Polly.
+
+                        var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/users/{repoOwner}/repos?page={pageIndex}&per_page={apiPageSize}");
+                        var httpResponse = await httpClient.SendAsync(httpRequest);
+
+                        if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotModified)
+                        {
+                            // No changes! This is a good thing. 304s don't impact our rate limit...
+
+                            log.LogDebug("No repo updates (304 Not Modified). No need to refresh repo map.");
+
+                            return;
+                        }
+
+                        // If it's anything else, we should just stop and try again in five minutes...
+
+                        httpResponse.EnsureSuccessStatusCode();
+
+                        if (pageIndex == 1 && httpResponse.Headers.Contains(apiEtagHeaderName))
+                        {
+                            // Try to get ETag from first page...
+
+                            // Apparently, you can use the ETag from the first page of GitHub results to determine if
+                            // the entire result set (all the pages) has changed.
+
+                            apiEtag = httpResponse.Headers.GetValues(apiEtagHeaderName).First();
+
+                            log.LogDebug($"Updated repo map GitHub API ETag is [{apiEtag}].");
+                        }
+
+                        using (var responseStream = await httpResponse.Content.ReadAsStreamAsync())
+                        {
+                            var pageRepos = await JsonSerializer.DeserializeAsync<IList<Repo>>(responseStream);
+
+                            // Pick out the repos that we care about and parse their labels...
+
+                            var pageCandidateRepos = pageRepos.Where(r => r.IsCandidate()).Select(r => new CandidateRepo(r)).ToList();
+
+                            if (pageCandidateRepos.Any())
+                            {
+                                log.LogDebug($"Adding [{pageCandidateRepos}] candidate repo(s) from page [{pageIndex}] to repo map...");
+
+                                repoMap.AddRange(pageCandidateRepos);
+                            }
+                            else
+                            {
+                                log.LogDebug($"No candidate repos found on page [{pageIndex}].");
+                            }
+
+                            if (pageRepos.Count < apiPageSize) break; // We've reached the end of the list.
+                        }
+                    }
+                }
+
+                // All done! Assuming we got this far (we actually have updates), refresh the repo map in blob storage and update the
+                // GitHub API ETag. See you again in five minutes...
+
+                await blobClient.UploadAsync(new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(repoMap))), overwrite: true);
+                await blobClient.SetMetadataAsync(new Dictionary<string, string> { [apiEtagMetadataName] = apiEtag });
+            }
+            catch (Exception ex)
+            {
+                // Bummer! Something broke. Since this function runs every five minutes and our only source of truth is the repo map blob,
+                // we shouldn't need to do any kind of cleanup at this point. Chances are, the next run will take care of it. If this is an
+                // an ongoing issue, we should already know about it through the logs + alert rules...
+
+                log.LogError(ex, "An error occurred while attemping to refresh the repo map. Please review inner exception for details.");
+
+                throw;
+            }
         }
     }
 }
