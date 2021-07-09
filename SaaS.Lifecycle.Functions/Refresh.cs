@@ -40,11 +40,15 @@ namespace SaaS.Lifecycle.Functions
 
             if (await blobClient.ExistsAsync())
             {
+                log.LogDebug($"Loading cached repo map [{containerName}/{mapBlobName}]...");
+
                 var blobProperties = (await blobClient.GetPropertiesAsync()).Value;
 
                 if (blobProperties.Metadata.ContainsKey(apiEtagMetadataName))
                 {
                     apiEtag = blobProperties.Metadata[apiEtagMetadataName];
+
+                    log.LogDebug($"Cached repo map [{containerName}/{mapBlobName}] etag is [{apiEtag}].");
                 }
             }
 
@@ -67,6 +71,8 @@ namespace SaaS.Lifecycle.Functions
 
                 for (int pageIndex = 1; ; pageIndex++)
                 {
+                    log.LogDebug($"Requesting page [{pageIndex}] of repos owned by [{repoOwner}] from GitHub API...");
+
                     var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/users/{repoOwner}/repos?page={pageIndex}&per_page={apiPageSize}");
                     var httpResponse = await httpClient.SendAsync(httpRequest);
 
