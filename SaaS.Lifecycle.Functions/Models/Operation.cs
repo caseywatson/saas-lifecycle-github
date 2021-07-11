@@ -16,14 +16,11 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("tenantId")]
         public string TenantId { get; set; }
 
-        [JsonProperty("runId")]
-        public string RunId { get; set; }
-
-        [JsonProperty("workflowId")]
-        public string WorkflowId { get; set; }
-
         [JsonProperty("actionType")]
         public string ActionTypeName { get; set; }
+
+        [JsonProperty("repoName")]
+        public string RepoName { get; set; }
 
         [JsonProperty("context")]
         public JObject Context { get; set; }

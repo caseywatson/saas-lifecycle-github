@@ -160,7 +160,7 @@ namespace SaaS.Lifecycle.Functions
                 EventTime = DateTime.UtcNow,
                 EventType = eventTypeName,
                 Id = Guid.NewGuid().ToString(),
-                Subject = $"/saas/subscriptions/{operation.SubscriptionId}"
+                Subject = $"/saas/tenants/{operation.TenantId}/subscriptions/{operation.SubscriptionId}"
             };
     }
 }

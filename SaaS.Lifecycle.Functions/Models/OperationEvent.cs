@@ -11,16 +11,20 @@ namespace SaaS.Lifecycle.Functions.Models
 
         public OperationEvent() { }
 
-        public OperationEvent(Operation operation, Run run)
+        public OperationEvent(Operation operation)
         {
             OperationId = operation.OperationId;
             SubscriptionId = operation.SubscriptionId;
             TenantId = operation.TenantId;
             ActionTypeName = operation.ActionTypeName;
-            RunId = operation.RunId;
-            WorkflowId = operation.WorkflowId;
             Context = operation.Context;
             Selectors = operation.Selectors;
+            RepoName = operation.RepoName;
+        }
+
+        public OperationEvent(Operation operation, Run run) : this(operation)
+        {
+            RunId = run.RunId;
             Conclusion = run.Conclusion;
             RunUrl = run.RunHtmlUrl;
             StartedAtUtc = run.CreatedAtUtc;
@@ -39,17 +43,17 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("actionType")]
         public string ActionTypeName { get; set; }
 
-        [JsonProperty("runId")]
-        public string RunId { get; set; }
-
-        [JsonProperty("workflowId")]
-        public string WorkflowId { get; set; }
+        [JsonProperty("repoName")]
+        public string RepoName { get; set; }
 
         [JsonProperty("context")]
         public JObject Context { get; set; }
 
         [JsonProperty("selectors")]
         public Dictionary<string, string> Selectors { get; set; } = new Dictionary<string, string>();
+
+        [JsonProperty("runId", DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public string RunId { get; set; }
 
         [JsonProperty("conclusion", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public string Conclusion { get; set; }
@@ -63,6 +67,6 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("finishedAtUtc", DefaultValueHandling = DefaultValueHandling.Ignore)]
         public DateTime? FinishedAtUtc { get; set; }
 
-        public string ToSubject() => $"/saas/subscriptions/{SubscriptionId}";
+        public string ToSubject() => $"/saas/tenants/{TenantId}/subscriptions/{SubscriptionId}";
     }
 }
