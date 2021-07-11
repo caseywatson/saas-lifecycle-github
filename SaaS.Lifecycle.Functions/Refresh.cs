@@ -1,6 +1,7 @@
 using Azure.Storage.Blobs;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Extensions.Logging;
+using Newtonsoft.Json;
 using SaaS.Lifecycle.Functions.Models;
 using System;
 using System.Collections.Generic;
@@ -8,7 +9,6 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace SaaS.Lifecycle.Functions
@@ -78,6 +78,8 @@ namespace SaaS.Lifecycle.Functions
                         httpClient.DefaultRequestHeaders.Add("If-None-Match", apiEtag);
                     }
 
+                    var jsonSerializer = new JsonSerializer();
+
                     // Page through all the repos and grab the ones that we care about...
 
                     for (int pageIndex = 1; ; pageIndex++)
@@ -114,34 +116,34 @@ namespace SaaS.Lifecycle.Functions
                             log.LogDebug($"Updated repo map GitHub API ETag is [{apiEtag}].");
                         }
 
-                        using (var responseStream = await httpResponse.Content.ReadAsStreamAsync())
+                        var httpContent = await httpResponse.Content.ReadAsStringAsync();
+                        var pageRepos = JsonConvert.DeserializeObject<List<Repo>>(httpContent);
+
+                        // Pick out the repos that we care about and parse their labels...
+
+                        var pageCandidateRepos = pageRepos
+                            .Where(r => r.IsPotentialCandidate())
+                            .Select(r => new CandidateRepo(r)).ToList();
+
+                        if (pageCandidateRepos.Any())
                         {
-                            var pageRepos = await JsonSerializer.DeserializeAsync<IList<Repo>>(responseStream);
+                            log.LogDebug($"Adding [{pageCandidateRepos.Count}] candidate repo(s) from page [{pageIndex}] to repo map...");
 
-                            // Pick out the repos that we care about and parse their labels...
-
-                            var pageCandidateRepos = pageRepos.Where(r => r.IsCandidate()).Select(r => new CandidateRepo(r)).ToList();
-
-                            if (pageCandidateRepos.Any())
-                            {
-                                log.LogDebug($"Adding [{pageCandidateRepos}] candidate repo(s) from page [{pageIndex}] to repo map...");
-
-                                repoMap.AddRange(pageCandidateRepos);
-                            }
-                            else
-                            {
-                                log.LogDebug($"No candidate repos found on page [{pageIndex}].");
-                            }
-
-                            if (pageRepos.Count < apiPageSize) break; // We've reached the end of the list.
+                            repoMap.AddRange(pageCandidateRepos);
                         }
+                        else
+                        {
+                            log.LogDebug($"No candidate repos found on page [{pageIndex}].");
+                        }
+
+                        if (pageRepos.Count < apiPageSize) break; // We've reached the end of the list.
                     }
                 }
 
                 // All done! Assuming we got this far (we actually have updates), refresh the repo map in blob storage and update the
                 // GitHub API ETag. See you again in five minutes...
 
-                await blobClient.UploadAsync(new MemoryStream(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(repoMap))), overwrite: true);
+                await blobClient.UploadAsync(new MemoryStream(Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(repoMap))), overwrite: true);
                 await blobClient.SetMetadataAsync(new Dictionary<string, string> { [apiEtagMetadataName] = apiEtag });
             }
             catch (Exception ex)
@@ -150,7 +152,7 @@ namespace SaaS.Lifecycle.Functions
                 // we shouldn't need to do any kind of cleanup at this point. Chances are, the next run will take care of it. If this is an
                 // an ongoing issue, we should already know about it through the logs + alert rules...
 
-                log.LogError(ex, "An error occurred while attemping to refresh the repo map. Please review inner exception for details.");
+                log.LogError(ex, "An error occurred while attemping to refresh the repo map. See exception for details.");
 
                 throw;
             }

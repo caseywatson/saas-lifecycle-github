@@ -1,34 +1,34 @@
-﻿using System.Linq;
-using System.Text.Json.Serialization;
+﻿using Newtonsoft.Json;
+using System.Linq;
 
 namespace SaaS.Lifecycle.Functions.Models
 {
     public class Repo
     {
-        [JsonPropertyName("id")]
+        [JsonProperty("id")]
         public string Id { get; set; }
 
-        [JsonPropertyName("name")]
+        [JsonProperty("name")]
         public string Name { get; set; }
 
-        [JsonPropertyName("full_name")]
+        [JsonProperty("full_name")]
         public string FullName { get; set; }
 
-        [JsonPropertyName("description")]
+        [JsonProperty("description")]
         public string Description { get; set; }
 
-        [JsonPropertyName("default_branch")]
+        [JsonProperty("default_branch")]
         public string DefaultBranchName { get; set; }
 
-        [JsonPropertyName("html_url")]
+        [JsonProperty("html_url")]
         public string RepoHomeUrl { get; set; }
 
-        [JsonPropertyName("topics")]
+        [JsonProperty("topics")]
         public string[] Topics { get; set; }
 
-        [JsonPropertyName("owner")]
+        [JsonProperty("owner")]
         public RepoOwner Owner { get; set; }
 
-        public bool IsCandidate() => (Topics?.Contains(CandidateRepo.OptInLabel) == true);
+        public bool IsPotentialCandidate() => (Topics?.Contains(CandidateRepo.OptInLabel) == true);
     }
 }

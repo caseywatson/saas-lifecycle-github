@@ -1,30 +1,34 @@
-﻿using System.Collections.Generic;
+﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using System.Collections.Generic;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace SaaS.Lifecycle.Functions.Models
 {
     public class Operation
     {
-        [JsonPropertyName("operationId")]
+        [JsonProperty("operationId")]
         public string OperationId { get; set; }
 
-        [JsonPropertyName("runId")]
-        public string RunId { get; set; }
-
-        [JsonPropertyName("workflowId")]
-        public string WorkflowId { get; set; }
-
-        [JsonPropertyName("subscriptionId")]
+        [JsonProperty("subscriptionId")]
         public string SubscriptionId { get; set; }
 
-        [JsonPropertyName("tenantId")]
+        [JsonProperty("tenantId")]
         public string TenantId { get; set; }
 
-        [JsonPropertyName("context")]
-        public JsonElement? Context { get; set; }
+        [JsonProperty("runId")]
+        public string RunId { get; set; }
 
-        [JsonPropertyName("selectors")]
+        [JsonProperty("workflowId")]
+        public string WorkflowId { get; set; }
+
+        [JsonProperty("actionType")]
+        public string ActionTypeName { get; set; }
+
+        [JsonProperty("context")]
+        public JObject Context { get; set; }
+
+        [JsonProperty("selectors")]
         public Dictionary<string, string> Selectors { get; set; } = new Dictionary<string, string>();
     }
 }

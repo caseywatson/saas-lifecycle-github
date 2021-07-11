@@ -1,23 +1,35 @@
-﻿using System;
-using System.Text.Json.Serialization;
+﻿using Newtonsoft.Json;
+using System;
 
 namespace SaaS.Lifecycle.Functions.Models
 {
     public class Run
     {
-        [JsonPropertyName("id")]
-        public string Id { get; set; }
+        public static class Conclusions
+        {
+            public const string ActionRequired = "action_required";
+            public const string Cancelled = "cancelled";
+            public const string Failure = "failure";
+            public const string Neutral = "neutral";
+            public const string Success = "success";
+            public const string Skipped = "skipped";
+            public const string Stale = "stale";
+            public const string TimedOut = "timed_out";
+        }
 
-        [JsonPropertyName("conclusion")]
+        [JsonProperty("id")]
+        public string RunId { get; set; }
+
+        [JsonProperty("conclusion")]
         public string Conclusion { get; set; }
 
-        [JsonPropertyName("html_url")]
+        [JsonProperty("html_url")]
         public string RunHtmlUrl { get; set; }
 
-        [JsonPropertyName("created_at")]
+        [JsonProperty("created_at")]
         public DateTime? CreatedAtUtc { get; set; }
 
-        [JsonPropertyName("updated_at")]
+        [JsonProperty("updated_at")]
         public DateTime? UpdatedAtUtc { get; set; }
     }
 }

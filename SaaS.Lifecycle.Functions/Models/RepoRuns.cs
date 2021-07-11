@@ -1,11 +1,11 @@
-﻿using System.Collections.Generic;
-using System.Text.Json.Serialization;
+﻿using Newtonsoft.Json;
+using System.Collections.Generic;
 
 namespace SaaS.Lifecycle.Functions.Models
 {
     public class RepoRuns
     {
-        [JsonPropertyName("workflow_runs")]
+        [JsonProperty("workflow_runs")]
         public List<Run> Runs { get; set; }
     }
 }
