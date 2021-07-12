@@ -47,12 +47,17 @@ namespace SaaS.Lifecycle.Functions
                 var repoMapContainerClient = blobServiceClient.GetBlobContainerClient(repoMapContainerName);
                 var repoMap = await repoMapContainerClient.GetRepoMapAsync();
 
-                if (repoMap == null) return new StatusCodeResult(503); // 503 = Service Unavailable
+                if (repoMap == null)
+                {
+                    log.LogWarning($"Repo map not found. Unable to service operation [{opRequest.OperationId}] request (503).");
+
+                    return new StatusCodeResult(503); // 503 = Service Unavailable
+                }
 
                 var selectedRepos = SelectCandidateRepos(repoMap, opRequest);
 
                 if (!selectedRepos.Any()) return WorkflowNotFound(); // 404
-                if (selectedRepos.Count > 1) return CantDecideWhichRepo(selectedRepos.Select(r => r.Repo.Name)); // 409
+                if (selectedRepos.Count > 1) return CantDecideWhichWorkflow(selectedRepos.Select(r => r.Repo.Name)); // 409
 
                 var selectedRepo = selectedRepos.Single();
                 var ghHttpClient = CreateGitHubHttpClient(pat);
@@ -91,7 +96,7 @@ namespace SaaS.Lifecycle.Functions
             }
         }
 
-        private static IActionResult CantDecideWhichRepo(IEnumerable<string> repoNames) =>
+        private static IActionResult CantDecideWhichWorkflow(IEnumerable<string> repoNames) =>
             new ConflictObjectResult($"Can't decide which workflow to run — {string.Join(" or ", repoNames.Select(rn => $"[{rn}]"))}");
 
         private static IActionResult WorkflowNotFound() =>

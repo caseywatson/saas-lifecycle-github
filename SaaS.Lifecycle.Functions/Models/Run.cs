@@ -20,6 +20,9 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("id")]
         public string RunId { get; set; }
 
+        [JsonProperty("head_branch")]
+        public string BranchName { get; set; }
+
         [JsonProperty("conclusion")]
         public string Conclusion { get; set; }
 

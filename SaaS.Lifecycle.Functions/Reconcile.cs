@@ -50,65 +50,52 @@ namespace SaaS.Lifecycle.Functions
                 var opBlobsByRepo = (from opBlob in opBlobs
                                      let nameParts = opBlob.Name.Trim().Split('/') // Blob name should be [repo-name/run-id]...
                                      where (nameParts.Length == 2) && nameParts.All(np => !string.IsNullOrEmpty(np)) // Make sure that both parts are there, then...
-                                     select new { RepoName = nameParts[0], RunId = nameParts[1], Blob = opBlob }) // Get the repo name, run ID, and the blob itself, then...                                                                              
+                                     select new { RepoName = nameParts[0], OpBranchName = nameParts[1], Blob = opBlob }) // Get the repo name, run ID, and the blob itself, then...                                                                              
                                      .GroupBy(g => g.RepoName) // Group by repo name as this is how we'll work them, then...
-                                     .ToDictionary(d => d.Key, d => d.ToDictionary(a => a.RunId, a => a.Blob)); // Collapse it all down into a nested dictionary we can work with.
+                                     .ToDictionary(d => d.Key, d => d.ToDictionary(a => a.OpBranchName, a => a.Blob)); // Collapse it all down into a nested dictionary we can work with.
 
                 if (opBlobsByRepo.Any())
                 {
-                    using (var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") })
+                    var httpClient = CreateGitHubHttpClient(pat);
+
+                    // For each applicable repo...
+
+                    foreach (var repoName in opBlobsByRepo.Keys)
                     {
-                        httpClient.DefaultRequestHeaders.Clear();
-                        httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
-                        httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
+                        // Let's get the latest completed workflow runs for this repo...
 
-                        // For each applicable repo...
+                        var repoRuns = await httpClient.GetRepoRunsAsync(repoOwner, repoName);
 
-                        foreach (var repoName in opBlobsByRepo.Keys)
+                        if (repoRuns.Runs.Any())
                         {
-                            // Let's get the latest completed workflow runs for this repo...
+                            // Try to match each operation run ID to a GitHub run ID...
 
-                            var httpRequest = new HttpRequestMessage(HttpMethod.Get,
-                                $"/repos/{repoOwner}/{repoName}/actions/runs?event=workflow_dispatch&status=completed&per_page=100");
-
-                            var httpResponse = await httpClient.SendAsync(httpRequest);
-
-                            if (httpResponse.IsSuccessStatusCode)
+                            foreach (var operationId in opBlobsByRepo[repoName].Keys)
                             {
-                                var httpContent = await httpResponse.Content.ReadAsStringAsync();
-                                var repoRuns = JsonConvert.DeserializeObject<RepoRuns>(httpContent);
+                                var run = repoRuns.Runs.FirstOrDefault(r => r.BranchName == operationId);
 
-                                if (repoRuns.Runs.Any())
+                                if (run != null)
                                 {
-                                    // Try to match each operation run ID to a GitHub run ID...
+                                    // Score! We found a match!
 
-                                    foreach (var opRunId in opBlobsByRepo[repoName].Keys)
+                                    try
                                     {
-                                        var repoRun = repoRuns.Runs.FirstOrDefault(r => r.RunId == opRunId);
+                                        // Try to reoncile the operation and run...
 
-                                        if (repoRun != null)
-                                        {
-                                            // Score! We found a match!
+                                        var opBlobItem = opBlobsByRepo[repoName][operationId];
+                                        var blobClient = containerClient.GetBlobClient(opBlobItem.Name);
+                                        var operation = await blobClient.GetOperationAsync();
+                                        var operationEvent = ReconcileOperation(operation, run);
 
-                                            try
-                                            {
-                                                // Try to reoncile the operation and run...
+                                        await blobClient.ArchiveOperationBlob();
+                                        await httpClient.ArchiveOperationBranch(operation, repoOwner);
+                                        await eventCollector.AddAsync(operationEvent);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        // We can't reconcile this run so we'll just move to the next one...
 
-                                                var opBlobItem = opBlobsByRepo[repoName][opRunId];
-                                                var blobClient = containerClient.GetBlobClient(opBlobItem.Name);
-                                                var operationEvent = await ReconcileOperation(blobClient, repoRun);
-
-                                                // If we're able to reconcile the operation and run, fire an appropriate event.
-
-                                                await eventCollector.AddAsync(operationEvent);
-                                            }
-                                            catch (Exception ex)
-                                            {
-                                                // We can't reconcile this run so we'll just move to the next one...
-
-                                                log.LogError(ex, $"Run [{repoName}/{opRunId}] reconciliation has failed. See exception for details.");
-                                            }
-                                        }
+                                        log.LogError(ex, $"Run [{repoName}/{run.RunId}] reconciliation has failed. See exception for details.");
                                     }
                                 }
                             }
@@ -128,29 +115,57 @@ namespace SaaS.Lifecycle.Functions
             }
         }
 
-        private static async Task<EventGridEvent> ReconcileOperation(BlobClient opBlobClient, Run run)
+        private static HttpClient CreateGitHubHttpClient(string pat)
         {
-            // Pull down the operation details from blob storage...
+            var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") };
 
-            var blobContent = await opBlobClient.DownloadContentAsync();
-            var blobString = Encoding.UTF8.GetString(blobContent.Value.Content.ToArray());
-            var operation = JsonConvert.DeserializeObject<Models.Operation>(blobString);
+            httpClient.DefaultRequestHeaders.Clear();
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
 
-            // For better or worse, the operation is done so we should archive it. 
-            // Stuck this in a super-small function so we can change what archival means if we need to later.
-
-            await ArchiveOperation(opBlobClient);
-
-            return run.Conclusion switch
-            {
-                Models.Run.Conclusions.Failure => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigurationFailed),
-                Models.Run.Conclusions.Success => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigured),
-                Models.Run.Conclusions.TimedOut => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigurationTimedOut),
-                _ => throw new Exception($"Unable to handle run conclusion [{run.Conclusion}].")
-            };
+            return httpClient;
         }
 
-        private static Task ArchiveOperation(BlobClient blobClient) => blobClient.DeleteAsync();
+        private static async Task<RepoRuns> GetRepoRunsAsync(this HttpClient httpClient, string repoOwner, string repoName)
+        {
+            var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/repos/{repoOwner}/{repoName}/actions/runs");
+            var httpResponse = await httpClient.SendAsync(httpRequest);
+
+            httpResponse.EnsureSuccessStatusCode();
+
+            var httpContent = await httpResponse.Content.ReadAsStringAsync();
+
+            return JsonConvert.DeserializeObject<RepoRuns>(httpContent);
+        }
+
+        private static async Task<Models.Operation> GetOperationAsync(this BlobClient opBlobClient)
+        {
+            var blobContent = await opBlobClient.DownloadContentAsync();
+            var blobString = Encoding.UTF8.GetString(blobContent.Value.Content.ToArray());
+
+            return JsonConvert.DeserializeObject<Models.Operation>(blobString);
+        }
+
+        private static EventGridEvent ReconcileOperation(Models.Operation operation, Run run) =>
+             run.Conclusion switch
+             {
+                 Models.Run.Conclusions.Failure => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigurationFailed),
+                 Models.Run.Conclusions.Success => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigured),
+                 Models.Run.Conclusions.TimedOut => ToEventGridEvent(operation, run, EventTypeNames.SubscriptionConfigurationTimedOut),
+                 _ => throw new Exception($"Unable to handle run conclusion [{run.Conclusion}].")
+             };
+
+        private static Task ArchiveOperationBlob(this BlobClient blobClient) => blobClient.DeleteAsync();
+
+        private static async Task ArchiveOperationBranch(this HttpClient httpClient, Models.Operation operation, string repoOwner)
+        {
+            var httpRequest = new HttpRequestMessage(HttpMethod.Delete,
+                $"/repos/{repoOwner}/{operation.RepoName}/git/refs/heads/{operation.OperationId}");
+
+            var httpResponse = await httpClient.SendAsync(httpRequest);
+
+            httpResponse.EnsureSuccessStatusCode();
+        }
 
         private static EventGridEvent ToEventGridEvent(Models.Operation operation, Run run, string eventTypeName) =>
             new EventGridEvent
