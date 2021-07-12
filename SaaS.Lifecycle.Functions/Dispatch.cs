@@ -23,19 +23,21 @@ namespace SaaS.Lifecycle.Functions
     {
         [FunctionName("Dispatch")]
         public static async Task<IActionResult> Run(
-            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "/saas/tenants/{tenantId:alpha}/subscriptions/{subscriptionId:alpha}/{actionType:alpha}")] HttpRequest req,
+            [HttpTrigger(AuthorizationLevel.Function, "post", Route = "saas/tenants/{tenantId}/subscriptions/{subscriptionId}/{actionType}")] HttpRequest req,
             [EventGrid(TopicEndpointUri = "EventGridEndpoint", TopicKeySetting = "EventGridKey")] IAsyncCollector<EventGridEvent> eventCollector,
             ILogger log, string tenantId, string subscriptionId, string actionType)
         {
+            var httpContent = await new StreamReader(req.Body).ReadToEndAsync();
+            var opRequest = JsonConvert.DeserializeObject<OperationRequest>(httpContent);
+
+            if (opRequest.Selectors?.Any() != true)
+            {
+                return new BadRequestObjectResult("At least one selector is required."); // 400
+            }
+
             try
             {
-                var httpContent = await new StreamReader(req.Body).ReadToEndAsync();
-                var opRequest = JsonConvert.DeserializeObject<OperationRequest>(httpContent);
-
-                if (opRequest.Selectors?.Any() != true)
-                {
-                    return new BadRequestObjectResult("At least one selector is required."); // 400
-                }
+                log.LogInformation($"Attempting to dispatch operation [{opRequest.OperationId}]...");
 
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
@@ -49,34 +51,63 @@ namespace SaaS.Lifecycle.Functions
 
                 if (repoMap == null)
                 {
-                    log.LogWarning($"Repo map not found. Unable to service operation [{opRequest.OperationId}] request (503).");
+                    log.LogWarning($"Repo map not found. Unable to service operation [{opRequest.OperationId}] request (503 Service Unavailable).");
 
                     return new StatusCodeResult(503); // 503 = Service Unavailable
                 }
 
+                log.LogInformation($"Selecting candidate workflows to service operation [{opRequest.OperationId}]...");
+
                 var selectedRepos = SelectCandidateRepos(repoMap, opRequest);
 
-                if (!selectedRepos.Any()) return WorkflowNotFound(); // 404
-                if (selectedRepos.Count > 1) return CantDecideWhichWorkflow(selectedRepos.Select(r => r.Repo.Name)); // 409
+                if (!selectedRepos.Any())
+                {
+                    log.LogWarning($"No workflows available to service operation [{opRequest.OperationId}] (404 Not Found).");
+
+                    return WorkflowNotFound();
+                }
+
+                if (selectedRepos.Count > 1)
+                {
+                    log.LogWarning(
+                        $"Can't decide which workflow to use to service operation [{opRequest.OperationId}] -- " +
+                        $"{string.Join(" or ", selectedRepos.Select(r => $"[{r.Name}]"))}. This may indicate a " +
+                        "workflow configuration problem (409 Conflict).");
+
+                    return CantDecideWhichWorkflow(selectedRepos.Select(r => r.Name)); // 409
+                }
 
                 var selectedRepo = selectedRepos.Single();
-                var ghHttpClient = CreateGitHubHttpClient(pat);
-                var headSha = await ghHttpClient.GetHeadShaAsync(repoOwner, selectedRepo.Repo.Name);
 
-                if (!await ghHttpClient.DoesWorkflowExistAsync(repoOwner, selectedRepo.Repo.Name, actionType))
+                log.LogInformation($"Trying to dispatch operation [{opRequest.OperationId}] to selected repo/workflow [{selectedRepo.Name}/{actionType}].yml...");
+
+                var ghHttpClient = CreateGitHubHttpClient(pat);
+                var headSha = await ghHttpClient.GetHeadShaAsync(repoOwner, selectedRepo.Name);
+
+                log.LogInformation($"Selected repo [{selectedRepo.Name}] main branch head SHA is [{headSha}].");
+
+                if (!await ghHttpClient.DoesWorkflowExistAsync(repoOwner, selectedRepo.Name, actionType))
                 {
+                    log.LogWarning(
+                        $"Unable to service operation [{opRequest.OperationId}]. " +
+                        $"Selected repo [{selectedRepo.Name}] workflow [{actionType}].yml not found (404 Not Found).");
+
                     return WorkflowNotFound(); // 404
                 }
 
+                log.LogInformation($"Creating operation [{opRequest.OperationId}] working branch...");
+
                 var opBranchName = await ghHttpClient.CreateOperationBranchAsync(
-                    repoOwner, selectedRepo.Repo.Name, headSha, opRequest.OperationId);
+                    repoOwner, selectedRepo.Name, headSha, opRequest.OperationId);
+
+                log.LogInformation($"Created operation [{opRequest.OperationId}] working branch [{selectedRepo.Name}/{opBranchName}].");
 
                 var operation = new Operation
                 {
                     ActionTypeName = actionType,
                     Context = opRequest.Context,
                     OperationId = opRequest.OperationId,
-                    RepoName = selectedRepo.Repo.Name,
+                    RepoName = selectedRepo.Name,
                     Selectors = opRequest.Selectors,
                     SubscriptionId = subscriptionId,
                     TenantId = tenantId
@@ -84,7 +115,12 @@ namespace SaaS.Lifecycle.Functions
 
                 var opBlobContainerClient = blobServiceClient.GetBlobContainerClient(opContainerName);
 
+                log.LogInformation($"Staging operation metadata [{opRequest.OperationId}] to working blob storage...");
+
                 await opBlobContainerClient.PutOperationBlobAsync(operation);
+
+                log.LogInformation($"Dispatching operation [{operation.OperationId}] to workflow [{selectedRepo.Name}/{opBranchName}]...");
+
                 await ghHttpClient.DispatchWorkflowRunAsync(operation, repoOwner);
                 await eventCollector.AddAsync(ToEventGridEvent(operation));
 
@@ -92,12 +128,16 @@ namespace SaaS.Lifecycle.Functions
             }
             catch (Exception ex)
             {
+                // Something broke. Log the error and return a 500...
+
+                log.LogError(ex, $"An error occurred while attempting to dispatch operation [{opRequest.OperationId}]. See exception for details.");
+
                 return new StatusCodeResult(500); // 500 = Internal Server Error
             }
         }
 
         private static IActionResult CantDecideWhichWorkflow(IEnumerable<string> repoNames) =>
-            new ConflictObjectResult($"Can't decide which workflow to run — {string.Join(" or ", repoNames.Select(rn => $"[{rn}]"))}");
+            new ConflictObjectResult($"Can't decide which workflow to run -- {string.Join(" or ", repoNames.Select(rn => $"[{rn}]"))}");
 
         private static IActionResult WorkflowNotFound() =>
             new BadRequestObjectResult("No matching workflow found.");
@@ -120,10 +160,11 @@ namespace SaaS.Lifecycle.Functions
             httpClient.DefaultRequestHeaders.Clear();
             httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
             httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "SaaS-Lifecycle");
 
             return httpClient;
-        }
 
+        }
         private static async Task DispatchWorkflowRunAsync(this HttpClient httpClient, Operation operation, string repoOwner)
         {
             var httpRequest = new HttpRequestMessage(HttpMethod.Post,
@@ -161,7 +202,7 @@ namespace SaaS.Lifecycle.Functions
             return inputs;
         }
 
-        private static async Task<List<CandidateRepo>> GetRepoMapAsync(this BlobContainerClient containerClient)
+        private static async Task<List<Repo>> GetRepoMapAsync(this BlobContainerClient containerClient)
         {
             const string mapBlobName = "repo_map.json";
 
@@ -172,7 +213,7 @@ namespace SaaS.Lifecycle.Functions
             var repoMapBlobContent = await repoMapBlobClient.DownloadContentAsync();
             var repoMapBlobString = Encoding.UTF8.GetString(repoMapBlobContent.Value.Content);
 
-            return JsonConvert.DeserializeObject<List<CandidateRepo>>(repoMapBlobString);
+            return JsonConvert.DeserializeObject<List<Repo>>(repoMapBlobString);
         }
 
         private static async Task PutOperationBlobAsync(this BlobContainerClient containerClient, Operation operation)
@@ -214,7 +255,7 @@ namespace SaaS.Lifecycle.Functions
         private static async Task<bool> DoesWorkflowExistAsync(this HttpClient httpClient,
             string repoOwner, string repoName, string actionTypeName)
         {
-            var httpRequest = new HttpRequestMessage(HttpMethod.Get, 
+            var httpRequest = new HttpRequestMessage(HttpMethod.Get,
                 $"/repos/{repoOwner}/{repoName}/actions/workflows/{actionTypeName}.yml");
 
             var httpResponse = await httpClient.SendAsync(httpRequest);
@@ -250,7 +291,7 @@ namespace SaaS.Lifecycle.Functions
 
         private static string ToDescription(this HttpStatusCode statusCode) => $"{statusCode} ({(int)statusCode})";
 
-        private static IList<CandidateRepo> SelectCandidateRepos(List<CandidateRepo> repoMap, OperationRequest opRequest) =>
-            repoMap.Where(rm => opRequest.Selectors.All(s => rm.Labels.Contains(s))).ToList();
+        private static IList<Repo> SelectCandidateRepos(List<Repo> repoMap, OperationRequest opRequest) =>
+            repoMap.Where(rm => opRequest.Selectors.All(s => rm.Topics.Contains(s))).ToList();
     }
 }

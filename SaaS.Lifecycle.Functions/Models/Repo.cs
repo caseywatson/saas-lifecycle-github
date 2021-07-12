@@ -5,6 +5,8 @@ namespace SaaS.Lifecycle.Functions.Models
 {
     public class Repo
     {
+        public const string OptInLabel = "saas-lifecycle";
+
         [JsonProperty("id")]
         public string Id { get; set; }
 
@@ -29,6 +31,6 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("owner")]
         public RepoOwner Owner { get; set; }
 
-        public bool IsPotentialCandidate() => (Topics?.Contains(CandidateRepo.OptInLabel) == true);
+        public bool IsPotentialCandidate() => (Topics?.Contains(OptInLabel) == true);
     }
 }

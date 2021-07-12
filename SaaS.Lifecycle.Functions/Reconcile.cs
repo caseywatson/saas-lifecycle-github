@@ -31,7 +31,7 @@ namespace SaaS.Lifecycle.Functions
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
                 var containerName = Environment.GetEnvironmentVariable("OperationStorageContainerName");
-                var repoOwner = Environment.GetEnvironmentVariable("repoOwner");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwner");
 
                 // Let's go see what operations are pending...
 
@@ -48,7 +48,7 @@ namespace SaaS.Lifecycle.Functions
                 }
 
                 var opBlobsByRepo = (from opBlob in opBlobs
-                                     let nameParts = opBlob.Name.Trim().Split('/') // Blob name should be [repo-name/run-id]...
+                                     let nameParts = opBlob.Name.Trim().Split('/') // Blob name should be [repo-name/operation-id]...
                                      where (nameParts.Length == 2) && nameParts.All(np => !string.IsNullOrEmpty(np)) // Make sure that both parts are there, then...
                                      select new { RepoName = nameParts[0], OpBranchName = nameParts[1], Blob = opBlob }) // Get the repo name, run ID, and the blob itself, then...                                                                              
                                      .GroupBy(g => g.RepoName) // Group by repo name as this is how we'll work them, then...
@@ -122,6 +122,7 @@ namespace SaaS.Lifecycle.Functions
             httpClient.DefaultRequestHeaders.Clear();
             httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
             httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "SaaS-Lifecycle");
 
             return httpClient;
         }

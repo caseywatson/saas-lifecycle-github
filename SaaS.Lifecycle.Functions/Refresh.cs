@@ -43,7 +43,7 @@ namespace SaaS.Lifecycle.Functions
 
                 if (await blobClient.ExistsAsync())
                 {
-                    log.LogDebug($"Loading cached repo map from [{containerName}/{mapBlobName}]...");
+                    log.LogInformation($"Loading cached repo map from [{containerName}/{mapBlobName}]...");
 
                     var blobProperties = (await blobClient.GetPropertiesAsync()).Value;
 
@@ -51,7 +51,7 @@ namespace SaaS.Lifecycle.Functions
                     {
                         apiEtag = blobProperties.Metadata[apiEtagMetadataName];
 
-                        log.LogDebug($"Cached repo map [{containerName}/{mapBlobName}] GitHub API ETag is [{apiEtag}].");
+                        log.LogInformation($"Cached repo map [{containerName}/{mapBlobName}] GitHub API ETag is [{apiEtag}].");
                     }
                     else
                     {
@@ -63,15 +63,16 @@ namespace SaaS.Lifecycle.Functions
                     log.LogWarning("Cached repo map not found.");
                 }
 
-                var repoMap = new List<CandidateRepo>();
+                var repoMap = new List<Repo>();
 
-                log.LogDebug("Refreshing repo map...");
+                log.LogInformation("Refreshing repo map...");
 
                 using (var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") })
                 {
                     httpClient.DefaultRequestHeaders.Clear();
                     httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
                     httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
+                    httpClient.DefaultRequestHeaders.Add("User-Agent", "SaaS-Lifecycle");
 
                     if (!string.IsNullOrEmpty(apiEtag))
                     {
@@ -84,7 +85,7 @@ namespace SaaS.Lifecycle.Functions
 
                     for (int pageIndex = 1; ; pageIndex++)
                     {
-                        log.LogDebug($"Getting page [{pageIndex}] of [{repoOwner}]'s repos from GitHub API...");
+                        log.LogInformation($"Getting page [{pageIndex}] of [{repoOwner}]'s repos from GitHub API...");
 
                         // TODO: Sprinkle in some Polly.
 
@@ -95,7 +96,7 @@ namespace SaaS.Lifecycle.Functions
                         {
                             // No changes! This is a good thing. 304s don't impact our rate limit...
 
-                            log.LogDebug("No repo updates (304 Not Modified). No need to refresh repo map.");
+                            log.LogInformation("No repo updates (304 Not Modified). No need to refresh repo map.");
 
                             return;
                         }
@@ -113,7 +114,7 @@ namespace SaaS.Lifecycle.Functions
 
                             apiEtag = httpResponse.Headers.GetValues(apiEtagHeaderName).First();
 
-                            log.LogDebug($"Updated repo map GitHub API ETag is [{apiEtag}].");
+                            log.LogInformation($"Updated repo map GitHub API ETag is [{apiEtag}].");
                         }
 
                         var httpContent = await httpResponse.Content.ReadAsStringAsync();
@@ -121,19 +122,17 @@ namespace SaaS.Lifecycle.Functions
 
                         // Pick out the repos that we care about and parse their labels...
 
-                        var pageCandidateRepos = pageRepos
-                            .Where(r => r.IsPotentialCandidate())
-                            .Select(r => new CandidateRepo(r)).ToList();
+                        var pageCandidateRepos = pageRepos.Where(r => r.IsPotentialCandidate()).ToList();
 
                         if (pageCandidateRepos.Any())
                         {
-                            log.LogDebug($"Adding [{pageCandidateRepos.Count}] candidate repo(s) from page [{pageIndex}] to repo map...");
+                            log.LogInformation($"Adding [{pageCandidateRepos.Count}] candidate repo(s) from page [{pageIndex}] to repo map...");
 
                             repoMap.AddRange(pageCandidateRepos);
                         }
                         else
                         {
-                            log.LogDebug($"No candidate repos found on page [{pageIndex}].");
+                            log.LogInformation($"No candidate repos found on page [{pageIndex}].");
                         }
 
                         if (pageRepos.Count < apiPageSize) break; // We've reached the end of the list.

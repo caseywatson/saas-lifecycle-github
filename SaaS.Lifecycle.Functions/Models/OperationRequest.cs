@@ -14,6 +14,6 @@ namespace SaaS.Lifecycle.Functions.Models
         public JObject Context { get; set; }
 
         [JsonProperty("selectors")]
-        public Dictionary<string, string> Selectors { get; set; } = new Dictionary<string, string>();
+        public List<string> Selectors { get; set; } = new List<string>();
     }
 }
