@@ -40,10 +40,14 @@ namespace SaaS.Lifecycle.Functions
                 // Make the topic selectors GitHub friendly...
 
                 opRequest.Selectors = opRequest.Selectors
-                    .Select(s => s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToString().ToLower())
+                    .Select(s => new string(s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToArray()).ToLower())
                     .ToList();
 
                 log.LogInformation($"Attempting to dispatch operation [{opRequest.OperationId}]...");
+
+                log.LogInformation(
+                    $"Operation [{opRequest.OperationId}] selectors are " + 
+                    $"{string.Join(" and ", opRequest.Selectors.Select(s => $"[{s}]"))}.");
 
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
