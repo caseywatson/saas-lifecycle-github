@@ -37,6 +37,12 @@ namespace SaaS.Lifecycle.Functions
 
             try
             {
+                // Make the topic selectors GitHub friendly...
+
+                opRequest.Selectors = opRequest.Selectors
+                    .Select(s => s.Trim().Select(c => char.IsLetterOrDigit(c) ? c : '-').ToString().ToLower())
+                    .ToList();
+
                 log.LogInformation($"Attempting to dispatch operation [{opRequest.OperationId}]...");
 
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
