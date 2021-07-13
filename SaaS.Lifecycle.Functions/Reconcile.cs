@@ -31,12 +31,15 @@ namespace SaaS.Lifecycle.Functions
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
                 var containerName = Environment.GetEnvironmentVariable("OperationStorageContainerName");
-                var repoOwner = Environment.GetEnvironmentVariable("RepoOwner");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
 
                 // Let's go see what operations are pending...
 
                 var serviceClient = new BlobServiceClient(storageConnString);
                 var containerClient = serviceClient.GetBlobContainerClient(containerName);
+
+                log.LogInformation("Getting working operation blobs...");
+
                 var opBlobs = new List<BlobItem>();
                 var opBlobPages = containerClient.GetBlobsAsync().AsPages();
 
@@ -46,6 +49,8 @@ namespace SaaS.Lifecycle.Functions
 
                     opBlobs.AddRange(opBlobPage.Values);
                 }
+
+                log.LogInformation($"[{opBlobs.Count}] working operation blob(s) found.");
 
                 var opBlobsByRepo = (from opBlob in opBlobs
                                      let nameParts = opBlob.Name.Trim().Split('/') // Blob name should be [repo-name/operation-id]...
@@ -62,6 +67,8 @@ namespace SaaS.Lifecycle.Functions
 
                     foreach (var repoName in opBlobsByRepo.Keys)
                     {
+                        log.LogInformation($"Repo [{repoName}] has [{opBlobsByRepo[repoName].Keys.Count}] working operation(s).");
+
                         // Let's get the latest completed workflow runs for this repo...
 
                         var repoRuns = await httpClient.GetRepoRunsAsync(repoOwner, repoName);
@@ -78,6 +85,8 @@ namespace SaaS.Lifecycle.Functions
                                 {
                                     // Score! We found a match!
 
+                                    log.LogInformation($"Operation [{operationId}] >>>> Run [{run.RunId}]");
+
                                     try
                                     {
                                         // Try to reoncile the operation and run...
@@ -87,8 +96,14 @@ namespace SaaS.Lifecycle.Functions
                                         var operation = await blobClient.GetOperationAsync();
                                         var operationEvent = ReconcileOperation(operation, run);
 
-                                        await blobClient.ArchiveOperationBlob();
-                                        await httpClient.ArchiveOperationBranch(operation, repoOwner);
+                                        log.LogInformation($"Operation [{operationId}] completed by run [{run.RunId} ({run.RunHtmlUrl})].");
+                                        log.LogInformation($"Deleting operation [{operationId}] blob...");
+
+                                        await blobClient.DeleteOperationBlob();
+
+                                        log.LogInformation($"Deleting operation [{operationId}] branch...");
+
+                                        await httpClient.DeleteOperationBranch(operation, repoOwner);
                                         await eventCollector.AddAsync(operationEvent);
                                     }
                                     catch (Exception ex)
@@ -129,7 +144,7 @@ namespace SaaS.Lifecycle.Functions
 
         private static async Task<RepoRuns> GetRepoRunsAsync(this HttpClient httpClient, string repoOwner, string repoName)
         {
-            var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/repos/{repoOwner}/{repoName}/actions/runs");
+            var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/repos/{repoOwner}/{repoName}/actions/runs?status=completed");
             var httpResponse = await httpClient.SendAsync(httpRequest);
 
             httpResponse.EnsureSuccessStatusCode();
@@ -156,9 +171,9 @@ namespace SaaS.Lifecycle.Functions
                  _ => throw new Exception($"Unable to handle run conclusion [{run.Conclusion}].")
              };
 
-        private static Task ArchiveOperationBlob(this BlobClient blobClient) => blobClient.DeleteAsync();
+        private static Task DeleteOperationBlob(this BlobClient blobClient) => blobClient.DeleteAsync();
 
-        private static async Task ArchiveOperationBranch(this HttpClient httpClient, Models.Operation operation, string repoOwner)
+        private static async Task DeleteOperationBranch(this HttpClient httpClient, Models.Operation operation, string repoOwner)
         {
             var httpRequest = new HttpRequestMessage(HttpMethod.Delete,
                 $"/repos/{repoOwner}/{operation.RepoName}/git/refs/heads/{operation.OperationId}");

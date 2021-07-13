@@ -90,7 +90,7 @@ namespace SaaS.Lifecycle.Functions
                 {
                     log.LogWarning(
                         $"Unable to service operation [{opRequest.OperationId}]. " +
-                        $"Selected repo [{selectedRepo.Name}] workflow [{actionType}].yml not found (404 Not Found).");
+                        $"Selected repo [{selectedRepo.Name}] workflow [{actionType}.yml] not found (404 Not Found).");
 
                     return WorkflowNotFound(); // 404
                 }
@@ -100,7 +100,7 @@ namespace SaaS.Lifecycle.Functions
                 var opBranchName = await ghHttpClient.CreateOperationBranchAsync(
                     repoOwner, selectedRepo.Name, headSha, opRequest.OperationId);
 
-                log.LogInformation($"Created operation [{opRequest.OperationId}] working branch [{selectedRepo.Name}/{opBranchName}].");
+                log.LogInformation($"Created operational [{opRequest.OperationId}] working repo/branch [{selectedRepo.Name}/{opBranchName}].");
 
                 var operation = new Operation
                 {
@@ -119,7 +119,9 @@ namespace SaaS.Lifecycle.Functions
 
                 await opBlobContainerClient.PutOperationBlobAsync(operation);
 
-                log.LogInformation($"Dispatching operation [{operation.OperationId}] to workflow [{selectedRepo.Name}/{opBranchName}]...");
+                log.LogInformation(
+                    $"Dispatching operation [{operation.OperationId}] to repo/branch/workflow " +
+                    $"[{selectedRepo.Name}/{opBranchName}/{actionType}.yml]...");
 
                 await ghHttpClient.DispatchWorkflowRunAsync(operation, repoOwner);
                 await eventCollector.AddAsync(ToEventGridEvent(operation));
