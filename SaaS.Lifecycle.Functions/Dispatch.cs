@@ -61,7 +61,9 @@ namespace SaaS.Lifecycle.Functions
 
                 if (repoMap == null)
                 {
-                    log.LogWarning($"Repo map not found. Unable to service operation [{opRequest.OperationId}] request (503 Service Unavailable).");
+                    log.LogWarning(
+                        $"Repo map not found. Unable to service operation [{opRequest.OperationId}] request (503 Service Unavailable)." +
+                        "If you have just set up a edgar, it can take it up to 5 minutes for the repo map to be built. Try again soon.");
 
                     return new StatusCodeResult(503); // 503 = Service Unavailable
                 }
