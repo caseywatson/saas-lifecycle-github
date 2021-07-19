@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace SaaS.Lifecycle.Functions.Models
+namespace Edgar.Functions.Models
 {
     public class Operation
     {

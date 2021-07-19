@@ -1,23 +1,23 @@
-using System;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.WebJobs;
-using Microsoft.Azure.WebJobs.Extensions.Http;
+using Azure.Storage.Blobs;
+using Edgar.Functions.Models;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.EventGrid.Models;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.EventGrid;
+using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using SaaS.Lifecycle.Functions.Models;
-using System.Linq;
+using System;
 using System.Collections.Generic;
-using Azure.Storage.Blobs;
-using System.Text;
-using System.Net.Http;
-using Microsoft.Azure.WebJobs.Extensions.EventGrid;
-using Microsoft.Azure.EventGrid.Models;
+using System.IO;
+using System.Linq;
 using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace SaaS.Lifecycle.Functions
+namespace Edgar.Functions
 {
     public static class Dispatch
     {
@@ -46,7 +46,7 @@ namespace SaaS.Lifecycle.Functions
                 log.LogInformation($"Attempting to dispatch operation [{opRequest.OperationId}]...");
 
                 log.LogInformation(
-                    $"Operation [{opRequest.OperationId}] selectors are " + 
+                    $"Operation [{opRequest.OperationId}] selectors are " +
                     $"{string.Join(" and ", opRequest.Selectors.Select(s => $"[{s}]"))}.");
 
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
@@ -175,8 +175,8 @@ namespace SaaS.Lifecycle.Functions
             httpClient.DefaultRequestHeaders.Add("User-Agent", "SaaS-Lifecycle");
 
             return httpClient;
-
         }
+
         private static async Task DispatchWorkflowRunAsync(this HttpClient httpClient, Operation operation, string repoOwner)
         {
             var httpRequest = new HttpRequestMessage(HttpMethod.Post,

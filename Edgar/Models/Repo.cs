@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Linq;
 
-namespace SaaS.Lifecycle.Functions.Models
+namespace Edgar.Functions.Models
 {
     public class Repo
     {
@@ -31,6 +31,6 @@ namespace SaaS.Lifecycle.Functions.Models
         [JsonProperty("owner")]
         public RepoOwner Owner { get; set; }
 
-        public bool IsPotentialCandidate() => (Topics?.Contains(OptInLabel) == true);
+        public bool IsPotentialCandidate() => Topics?.Contains(OptInLabel) == true;
     }
 }

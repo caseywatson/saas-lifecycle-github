@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace SaaS.Lifecycle.Functions.Models
+namespace Edgar.Functions.Models
 {
     public class RepoRuns
     {

@@ -1,12 +1,12 @@
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Edgar.Functions.Models;
 using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
-using SaaS.Lifecycle.Functions.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,7 +14,7 @@ using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace SaaS.Lifecycle.Functions
+namespace Edgar.Functions
 {
     public static class Reconcile
     {
@@ -54,7 +54,7 @@ namespace SaaS.Lifecycle.Functions
 
                 var opBlobsByRepo = (from opBlob in opBlobs
                                      let nameParts = opBlob.Name.Trim().Split('/') // Blob name should be [repo-name/operation-id]...
-                                     where (nameParts.Length == 2) && nameParts.All(np => !string.IsNullOrEmpty(np)) // Make sure that both parts are there, then...
+                                     where nameParts.Length == 2 && nameParts.All(np => !string.IsNullOrEmpty(np)) // Make sure that both parts are there, then...
                                      select new { RepoName = nameParts[0], OpBranchName = nameParts[1], Blob = opBlob }) // Get the repo name, run ID, and the blob itself, then...                                                                              
                                      .GroupBy(g => g.RepoName) // Group by repo name as this is how we'll work them, then...
                                      .ToDictionary(d => d.Key, d => d.ToDictionary(a => a.OpBranchName, a => a.Blob)); // Collapse it all down into a nested dictionary we can work with.

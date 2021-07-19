@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System.Collections.Generic;
 
-namespace SaaS.Lifecycle.Functions.Models
+namespace Edgar.Functions.Models
 {
     public class WorkflowDispatchEvent
     {
@@ -10,5 +10,5 @@ namespace SaaS.Lifecycle.Functions.Models
 
         [JsonProperty("inputs")]
         public Dictionary<string, string> Inputs { get; set; } = new Dictionary<string, string>();
-    } 
+    }
 }

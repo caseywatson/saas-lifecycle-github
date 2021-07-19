@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.31410.357
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SaaS.Lifecycle.Functions", "SaaS.Lifecycle.Functions\SaaS.Lifecycle.Functions.csproj", "{52422F7C-B8F9-4CCA-892D-56FDB941DE0A}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Edgar.Functions", "Edgar\Edgar.Functions.csproj", "{52422F7C-B8F9-4CCA-892D-56FDB941DE0A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

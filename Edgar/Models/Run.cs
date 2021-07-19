@@ -1,7 +1,7 @@
 ﻿using Newtonsoft.Json;
 using System;
 
-namespace SaaS.Lifecycle.Functions.Models
+namespace Edgar.Functions.Models
 {
     public class Run
     {
