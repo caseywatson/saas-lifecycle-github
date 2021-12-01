@@ -59,7 +59,7 @@ namespace Edgar.Functions
 
                     // TODO: Sprinkle in some Polly.
 
-                    var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/users/{repoOwner}/repos?page={pageIndex}&per_page={apiPageSize}");
+                    var httpRequest = new HttpRequestMessage(HttpMethod.Get, $"/user/repos?page={pageIndex}&per_page={apiPageSize}");
                     var httpResponse = await ghHttpClient.SendAsync(httpRequest);
 
                     if (httpResponse.StatusCode == System.Net.HttpStatusCode.NotModified)
@@ -163,7 +163,7 @@ namespace Edgar.Functions
             var httpClient = new HttpClient { BaseAddress = new Uri("https://api.github.com") };
 
             httpClient.DefaultRequestHeaders.Clear();
-            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.mercy-preview+json");
+            httpClient.DefaultRequestHeaders.Add("Accept", "application/vnd.github.v3+json");
             httpClient.DefaultRequestHeaders.Add("Authorization", $"token {pat}");
             httpClient.DefaultRequestHeaders.Add("User-Agent", "SaaS-Lifecycle");
 
