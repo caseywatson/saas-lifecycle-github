@@ -11,4 +11,17 @@ When building a SaaS app, it's critical to respond to subscription lifecycle eve
 
 ## How does Edgar work?
 
+Imagine a simple, single-tenant SaaS app that provisions an [Azure Linux VM](https://azure.microsoft.com/en-us/services/virtual-machines/linux/) for each SaaS subscription.
+
+* When a subscription is purchased, a new VM should be created.
+* When a subscription is suspended, the VM should be stopped/deallocated.
+  * In this state, the VM still exists but the ISV is no longer paying for its compute.
+* When a subscription is canceled, the VM should be deleted altogether.
+
 ![How does Edgar work?](edgar.png)
+
+Using Edgar, and ISV could configure three GitHub actions to support these subscription events.
+
+* `purchased.yml` deploys an ARM template that defines the Linux VM to create.
+* `suspended.yml` uses the Azure CLI action to stop/deallocate the VM.
+* `canceled.yml` uses the Azure CLI action to delete the VM.
