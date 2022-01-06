@@ -1,5 +1,8 @@
 # Edgar
-[E]vent-[D]riven [G]itHub [A]ction [R]unner
+
+| E | D | G | A | R |
+| --- | --- | --- | --- | --- |
+| Event | Driven | GitHub | Action | Runner |
 
 > 🧪⚠️ __Highly experimental.__ Don't use in production. You've been warned.
 
