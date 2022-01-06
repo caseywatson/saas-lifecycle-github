@@ -11,3 +11,4 @@ When building a SaaS app, it's critical to respond to subscription lifecycle eve
 
 ## How does Edgar work?
 
+![How does Edgar work?](edgar.png)
