@@ -21,7 +21,8 @@ Let's say for a moment that you're building an Azure-based SaaS app. Each subscr
 Let's walk through the lifecycle of a SaaS subscription together to understand why automation is so important here.
 
 * When a customer purchases a SaaS subscription, a dedicated set of VMs should be automatically created.
-* When a subscription is suspended due to non-payment, the VMs should be [deallocated](https://docs.microsoft.com/azure/virtual-machines/states-billing#power-states-and-billing). In this state, the VMs still exist but are no longer accessible. Most importantly, the ISV is no longer billed for their usage (apart from disk storage).
-* When a subscription is canceled, the VMs are deleted. The ISV is no longer paying for compute or disk storage that used to support the subscription.
+* When a subscription is suspended due to non-payment, the VMs should be [deallocated](https://docs.microsoft.com/azure/virtual-machines/states-billing#power-states-and-billing).
+  * In this state, the VMs still exist but are no longer accessible. Most importantly, the ISV is no longer billed for their usage (apart from disk storage).
+* When a subscription is canceled, the VMs should be deleted.
 
 While this is a very simple example, the core concept should be obvious. VMs are created only when customers are paying for them. If, for some reason, the customer's payment instrument becomes invalid, the subscription is moved into a suspended state and the VMs are deallocated so that the ISV is no longer paying for them (because the customer isn't). When a subscription has been fully canceled, it's safe to delete the VMs themselves.
