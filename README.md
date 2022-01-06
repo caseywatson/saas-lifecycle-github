@@ -22,7 +22,7 @@ Let's walk through the lifecycle of a SaaS subscription together to understand w
 
 * When a customer purchases a SaaS subscription, a dedicated set of VMs should be automatically created.
 * When a subscription is suspended due to non-payment, the VMs should be [deallocated](https://docs.microsoft.com/azure/virtual-machines/states-billing#power-states-and-billing).
-  * In this state, the VMs still exist but are no longer accessible. Most importantly, the ISV is no longer billed for their usage (apart from disk storage).
+  * In this state, the VMs still exist but are no longer accessible. Most importantly, you are no longer being billed for their usage (apart from disk storage).
 * When a subscription is canceled, the VMs should be deleted.
 
 While this is a very simple example, the core concept should be obvious. VMs are created only when customers are paying for them. If, for some reason, the customer's payment instrument becomes invalid, the subscription is moved into a suspended state and the VMs are deallocated so that the ISV is no longer paying for them (because the customer isn't). When a subscription has been fully canceled, it's safe to delete the VMs themselves.
