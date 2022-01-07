@@ -5,7 +5,7 @@
         "pat": {
             "type": "securestring",
             "metadata": {
-                "description": "The personal access token (PAT) used to access GitHub."
+                "description": "The personal access token (PAT) Edgar should use to access GitHub."
             }
         },
         "name": {
@@ -19,6 +19,7 @@
     },
     "variables": {
         "name": "[toLower(if(empty(parameters('name')), uniqueString(resourceGroup().id), parameters('name')))]",
+        "appInsightsName": "[concat(variables('name'), '-insights')]",
         "appServicePlanName": "[concat(variables('name'), '-plan')]",
         "eventGridTopicName": "[concat(variables('name'), '-events')]",
         "functionAppName": "[concat('edgar-', variables('name'))]",
@@ -31,6 +32,23 @@
         "serviceBlobContainerName": "service"
     },
     "resources": [
+        {
+            "type": "microsoft.insights/components",
+            "apiVersion": "2020-02-02-preview",
+            "name": "[variables('appInsightsName')]",
+            "location": "[resourceGroup().location]",
+            "kind": "web",
+            "dependsOn": [
+                "[variables('logWorkspaceName')]"
+            ],
+            "properties": {
+                "Application_Type": "web",
+                "IngestionMode": "LogAnalytics",
+                "publicNetworkAccessForIngestion": "Enabled",
+                "publicNetworkAccessForQuery": "Enabled",
+                "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logWorkspaceName'))]"
+            }
+        },
         {
             "type": "Microsoft.Storage/storageAccounts",
             "apiVersion": "2021-06-01",
