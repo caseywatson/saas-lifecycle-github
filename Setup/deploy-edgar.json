@@ -23,6 +23,9 @@
         "eventGridTopicName": "[concat(variables('name'), '-events')]",
         "functionAppName": "[concat('edgar-', variables('name'))]",
         "storageAccountName": "[concat(variables('name'), 'storage')]",
+        "logWorkspaceName": "[concat(variables('name'), '-workspace')]",
+        "logWorkspaceSku": "pergb2018",
+        "logRetentionInDays": 120,
         "blobServiceName": "default",
         "operationBlobContainerName": "operations",
         "serviceBlobContainerName": "service"
@@ -85,6 +88,21 @@
                 "inputSchema": "EventGridSchema",
                 "publicNetworkAccess": "Enabled"
             }
+        },
+        {
+          "type": "Microsoft.OperationalInsights/workspaces",
+          "name": "[variables('logWorkspaceName')]",
+          "apiVersion": "2020-08-01",
+          "location": "[resourceGroup().location]",
+          "properties": {
+              "sku": {
+                  "name": "[variables('logWorkspaceSku')]"
+              },
+              "retentionInDays": "[variables('logRetentionInDays')]",
+              "features": {
+                  "enableLogAccessUsingOnlyResourcePermissions": true
+              }
+          }
         },
         {
             "type": "Microsoft.Web/serverfarms",
