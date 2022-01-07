@@ -4,7 +4,7 @@
 | --- | --- | --- | --- | --- |
 | Event | Driven | GitHub | Action | Runner |
 
-> 🧪⚠️ __Highly experimental.__ Don't use in production. You've been warned.
+🧪⚠️ __Highly experimental.__ Don't use in production.
 
 ## Edgar and SaaS apps
 
