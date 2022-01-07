@@ -12,7 +12,7 @@ Edgar is designed to support independent software vendors (ISVs) that are buildi
 
 Customers purchase subscriptions (e.g., annual, monthly, etc.) to SaaS apps published by ISVs. Financially, it's critical that ISVs respond in as near real time as possible to subscription lifecycle events (e.g., purchases, suspensions, reinstatements, cancelations, etc.) to reconfigure the SaaS app's supporting cloud infrastructure.
 
-The idea is to continuously keep ISV revenue (what the ISV's customers are paying) and cloud spend in close alignment. When possible, ISVs should only be paying for cloud resources that their customers are paying for through their subscriptions. 
+The idea is to continuously keep ISV revenue (what the ISV's customers are paying) and cloud spend in close alignment. When possible, ISVs should only pay for cloud resources that their customers are already paying for through their subscriptions. 
 
 > There are always costs associated with _enabling_ SaaS including those needed to run Edgar. These costs aren't directly supported by subscribers. ISVs should focus on minimizing the cost of _enabling_ SaaS while their subscribers pay for resources needed to _deliver_ SaaS.
 
