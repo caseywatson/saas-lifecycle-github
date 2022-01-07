@@ -14,7 +14,7 @@ Customers purchase subscriptions (e.g., annual, monthly, etc.) to SaaS apps publ
 
 The idea is to continuously keep ISV revenue (what the ISV's customers are paying) and cloud spend in close alignment. When possible (depending on app tenancy model), ISVs should only be paying for cloud resources that their customers are paying for through their subscriptions. 
 
-> There are always costs associated with _enabling_ SaaS including running Edgar. These costs aren't directly supported by subscriptions. The goal is to minimize the cost of _enabling_ SaaS while subscribers pay for _delivering_ SaaS.
+> There are always costs associated with _enabling_ SaaS including those associated with running Edgar in Azure. These costs aren't directly supported by subscribers. ISVs should focus on minimizing the cost of _enabling_ SaaS while their subscribers pay for resources needed to _deliver_ SaaS.
 
 Edgar leverages GitHub Actions to tighten the lead time between subscription-related events and cloud infrastructure configuration enabling customers to access their SaaS subscriptions faster and ISVs to reduce idle resources and optimize cloud spend.
 
