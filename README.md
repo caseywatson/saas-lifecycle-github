@@ -8,8 +8,6 @@
 
 ## Edgar and SaaS apps
 
-> This section discusses the economics of SaaS and how Edgar supports it. Feel free to skip ahead if you're ready to set up Edgar...
-
 Edgar is designed primarily to support ISVs that are building SaaS apps in the cloud.
 
 Customers purchase subscriptions (e.g., annual, monthly, etc.) to SaaS apps published by independent software vendors (or ISVs). Financially, it's critical that ISVs respond in as near real time as possible to subscription lifecycle events (e.g., purchases, suspensions, reinstatements, cancelations, etc.) to reconfigure the SaaS app's supporting cloud infrastructure.
