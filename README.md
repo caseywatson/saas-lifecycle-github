@@ -18,7 +18,7 @@ Edgar leverages GitHub Actions to tighten the lead time between subscription-rel
 
 ### An example
 
-Let's say for a moment that you're building an Azure-based SaaS app. Each subscription that a customer purchases is powered by a set of dedicated (single-tenant) [Azure virtual machines (or VMs)](https://azure.microsoft.com/services/virtual-machines/). For our purposes, VMs are a great example because, in Azure, [they're charged by the minute based on hourly rates](https://azure.microsoft.com/pricing/details/virtual-machines/linux/) allowing you to potentially keep your revenue and cloud spend in alignment at the minute-level time grain.
+Let's say you're building an Azure-based SaaS app. Each subscription that a customer purchases is powered by a set of dedicated (single-tenant) [Azure virtual machines (or VMs)](https://azure.microsoft.com/services/virtual-machines/). For our purposes, VMs are a great example because, in Azure, [they're charged by the minute based on hourly rates](https://azure.microsoft.com/pricing/details/virtual-machines/linux/) allowing you to potentially keep your revenue and cloud spend in alignment at the minute-level time grain.
 
 Let's walk through the lifecycle of a SaaS subscription together to understand why automation is so important here.
 
