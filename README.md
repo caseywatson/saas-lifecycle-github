@@ -6,7 +6,7 @@
 
 🧪⚠️ __Highly experimental.__ Don't use in production.
 
-## Edgar and SaaS apps
+## Edgar and the economics of SaaS
 
 Edgar is designed to support independent software vendors (ISVs) building cloud-based SaaS apps.
 
