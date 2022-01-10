@@ -1,13 +1,9 @@
 #!/bin/bash
 
-exec 3>&2 # Grabbing a reliable stderr handle...
-
-usage() { printf "\nUsage: $0 <-p github-pat> <-r deployment-region> [-n deployment-name]\n"; }
+usage() { echo "Usage: $0 <-n name> <-p github_pat> <-r deployment_region> [-o github_repo_owner]"; }
 
 check_az() {
-    exec 3>&2
-
-    az version >/dev/null 2>&1
+    az version >/dev/null
 
     if [[ $? -ne 0 ]]; then
         echo "❌   Please install the Azure CLI before continuing. See [https://docs.microsoft.com/cli/azure/install-azure-cli] for more information."
@@ -18,9 +14,7 @@ check_az() {
 }
 
 check_dotnet() {
-    exec 3>&2
-
-    dotnet --version >/dev/null 2>&1
+    dotnet --version >/dev/null
 
     if [[ $? -ne 0 ]]; then
         echo "❌   Please install .NET before continuing. See [https://dotnet.microsoft.com/download] for more information."
@@ -54,29 +48,56 @@ check_deployment_name() {
     fi
 }
 
-check_prereqs() {
-    echo "Checking Edgar setup prerequisites...";
-
-    check_az;         if [[ $? -ne 0 ]]; then prereq_check_failed=1; fi;
-    check_dotnet;     if [[ $? -ne 0 ]]; then prereq_check_failed=1; fi;
-
-    if [[ -z $prereq_check_failed ]]; then
-        echo "✔   All Edgar setup prerequisites installed."
-    else
-        return 1
-    fi
+splash() {
+    echo
+    echo " E | vent"
+    echo " D | riven"
+    echo " G | itHub"
+    echo " A | ction"
+    echo " R | unner"
+    echo
+    echo "Edgar | 0.1-experimental"
+    echo "https://github.com/caseywatson/edgar"
+    echo
+    echo "🧪⚠️ Highly experimental. Don't use in production."
+    echo
 }
 
-while getopts "r:n:p:" opt; do
+# Introductions...
+
+splash
+
+# Make sure all pre-reqs are installed...
+
+echo "Checking Edgar setup script prerequisites...";
+
+check_az;       [[ $? -ne 0 ]] && prereq_check_failed=1
+check_dotnet;   [[ $? -ne 0 ]] && prereq_check_failed=1
+
+if [[ -z $prereq_check_failed ]]; then
+    echo "✔   All Edgar setup prerequisites installed."
+else
+    echo "❌   Please install all Edgar setup prerequisites then try again. Setup failed."
+    return 1
+fi
+
+# Get our parameters...
+
+p_repo_owner_name=""
+
+while getopts "n:o:p:r:" opt; do
     case $opt in
-        r)
-            deployment_region=$OPTARG
-        ;;
         n)
-            deployment_name=$OPTARG
+            p_deployment_name=$OPTARG
+        ;;
+        o)
+            p_repo_owner_name=$OPTARG
         ;;
         p)
-            github_pat=$OPTARG
+            p_github_pat=$OPTARG
+        ;;
+        r)
+            p_deployment_region=$OPTARG
         ;;
         \?)
             usage
@@ -85,41 +106,29 @@ while getopts "r:n:p:" opt; do
     esac
 done
 
-# Check for missing parameters.
+# Check our parameters...
 
-[[ -z $deployment_region || -z $github_pat ]] && { usage; exit 1; }
+echo "Validating script parameters..."
 
-# Set deployment and resource group names.
+[[ -z p_deployment_name || -z p_github_pat || -z p_deployment_region ]] && { usage; exit 1; }
 
-[[ -z $deployment_name ]] && deployment_name=`date +%N`
-resource_group_name="edgar-$deployment_name"
+check_deployment_region $p_deployment_region;   [[ $? -ne 0 ]] && param_check_failed=1
+check_deployment_name $p_deployment_name;       [[ $? -ne 0 ]] && param_check_failed=1
 
-# Is the deployment name valid?
-
-check_deployment_name "$deployment_name"
-
-[[ $? -ne 0 ]] && exit 1;
-
-# Are all of our pre-reqs satisfied?
-
-check_prereqs
-
-if [[ $? -ne 0 ]]; then
-    echo "❌   Please install all Edgar setup prerequisites then try again. Setup failed."
-    exit 1
+if [[ -z $param_check_failed ]]; then
+    echo "✔   All setup parameters are valid."
+else
+    echo "❌   Parameter validation failed. Please review and try again."
+    return 1
 fi
 
-# Is the specified deployment region valid?
+# Create our resource group if it doesn't already exist...
 
-check_deployment_region "$deployment_region";
-
-[[ $? -ne 0 ]] && exit 1;
-
-# Create the resource group if it doesn't already exist.
+resource_group_name="edgar-$p_deployment_name"
 
 if [[ $(az group exists --resource-group "$resource_group_name" --output tsv) == false ]]; then
     echo "Creating resource group [$resource_group_name]..."
-    az group create --location "$deployment_region" --name "$resource_group_name"
+    az group create --location "$p_deployment_region" --name "$resource_group_name"
 
     if [[ $? -eq 0 ]]; then
         echo "✔   Resource group [$resource_group_name] created."
@@ -127,18 +136,41 @@ if [[ $(az group exists --resource-group "$resource_group_name" --output tsv) ==
         echo "❌   Unable to create resource group [$resource_group_name]. See above output for details. Setup failed."
         exit 1
     fi
-elif [[ -n $(az resource list --resource-group "$resource_group_name" --output tsv) ]]; then
-    echo "$❌   Edgar must be deployed into an empty resource group. Resource group [$resource_group_name] contains resources. Setup failed."
-    exit 1
 fi
 
-subscription_id=$(az account show --query id --output tsv);
+# Deploying Edgar...
 
-# Deploy the ARM template.
+subscription_id=$(az account show --query id --output tsv)
+arm_deployment_name="edgar-deploy-$p_deployment_name"
 
-echo "Deploying Edgar to subscription [$subscription_id] resource group [$resource_group_name]..."
+echo "Deploying Edgar [$p_deployment_name] to subscription [$subscription_id] resource group [$resource_group_name]..."
 
-az_deployment_name="edgar-deploy-$deployment_name"
+az deployment group create \
+    --resource-group "$resource_group_name" \
+    --name "$arm_deployment_name" \
+    --template-file "./deploy-edgar.json" \
+    --parameters \
+        pat="$p_github_pat" \
+        repo_owner="$p_repo_owner_name" \
+        name="$p_deployment_name"
+
+function_app_name=$(az deployment group show --resource-group "$resource_group_name" --name "$arm_deployment_name" --query properties.outputs.functionAppName.value --output tsv);
+
+echo "Preparing to publish Edgar function app [$function_app_name]..."
+
+dotnet publish -c Release -o ./topublish ../Edgar/Edgar.Functions.csproj
+
+cd ./topublish
+zip -r ../topublish.zip . >/dev/null
+cd ..
+
+echo "Publishing Edgar function app [$function_app_name]..."
+
+az functionapp deployment source config-zip \
+    --resource-group "$resource_group_name" \
+    --name "$function_app_name" \
+    --src "./topublish.zip"
+
 
 
 

@@ -8,6 +8,13 @@
                 "description": "The personal access token (PAT) Edgar should use to access GitHub."
             }
         },
+        "repo_owner": {
+            "type": "string",
+            "defaultValue": "",
+            "metadata": {
+                "description": "The GitHub user or organization that owns the repos that Edgar should choose from when dispatching a request."
+            }
+        },
         "name": {
             "type": "string",
             "defaultValue": "",
@@ -165,6 +172,10 @@
                             "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';EndpointSuffix=', environment().suffixes.storage, ';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2019-06-01').keys[0].value)]"
                         },
                         {
+                            "name": "RepoOwner",
+                            "value": "[parameters('repo_owner')]"
+                        },
+                        {
                             "name": "WEBSITE_CONTENTSHARE",
                             "value": "[toLower(variables('functionAppName'))]"
                         },
@@ -204,5 +215,11 @@
                 }
             }
         }
-    ]
+    ],
+    "outputs": {
+        "functionAppName": {
+            "type": "string",
+            "value": "[variables('functionAppName')]"
+        }
+    }
 }
