@@ -145,7 +145,7 @@ fi
 subscription_id=$(az account show --query id --output tsv)
 arm_deployment_name="edgar-deploy-$p_deployment_name"
 
-echo "Deploying ARM template to subscription [$subscription_id] resource group [$resource_group_name]..."
+echo "🏗️    Deploying ARM template to subscription [$subscription_id] resource group [$resource_group_name]..."
 
 az deployment group create \
     --resource-group "$resource_group_name" \
@@ -158,7 +158,7 @@ az deployment group create \
 
 function_app_name=$(az deployment group show --resource-group "$resource_group_name" --name "$arm_deployment_name" --query properties.outputs.functionAppName.value --output tsv);
 
-echo "Packaging function app [$function_app_name] for deployment..."
+echo "📦    Packaging function app [$function_app_name] for deployment..."
 
 dotnet publish -c Release -o ./topublish ../Edgar/Edgar.Functions.csproj
 
@@ -166,25 +166,25 @@ cd ./topublish
 zip -r ../topublish.zip . >/dev/null
 cd ..
 
-echo "Publishing function app [$function_app_name]..."
+echo "☁️    Publishing function app [$function_app_name]..."
 
 az functionapp deployment source config-zip \
     --resource-group "$resource_group_name" \
     --name "$function_app_name" \
     --src "./topublish.zip"
 
-echo "Building initial repo map (repo_map.json)..."
+echo "🗺️    Building initial repo map (repo_map.json)..."
 
 master_key_url="https://management.azure.com/subscriptions/$subscription_id/resourceGroups/$resource_group_name/providers/Microsoft.Web/sites/$function_app_name/host/default/listKeys?api-version=2018-11-01"
-master_key=$(az rest --method post --uri "$master_key_url" --query masterKey) | tr -d \"
+master_key=$(az rest --method post --uri "$master_key_url" --query masterKey --output tsv)
 
-curl -X POST \
+curl -v -X POST \
     -H "Content-Type: application/json" \
     -H "x-functions-key: $master_key" \
     -d "{ \"input\": \"test\" }" \
     "https://$function_app_name.azurewebsites.net/admin/functions/Refresh"
 
-echo "Cleaning up..."
+echo "🧹   Cleaning up..."
 
 rm -rf ./topublish >/dev/null
 rm -rf ./topublish.zip >/dev/null
