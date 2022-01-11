@@ -176,7 +176,7 @@ az functionapp deployment source config-zip \
 echo "Building initial repo map (repo_map.json)..."
 
 master_key_url="https://management.azure.com/subscriptions/$subscription_id/resourceGroups/$resource_group_name/providers/Microsoft.Web/sites/$function_app_name/host/default/listKeys?api-version=2018-11-01"
-master_key=$(az rest --method post --uri "$master_key_url" --query masterKey)
+master_key=$(az rest --method post --uri "$master_key_url" --query masterKey) | tr -d \"
 
 curl -X POST \
     -H "Content-Type: application/json" \
