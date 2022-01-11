@@ -169,7 +169,7 @@ namespace Edgar.Functions
 
             if (!string.IsNullOrEmpty(apiEtag))
             {
-                httpClient.DefaultRequestHeaders.Add("If-None-Match", apiEtag);
+                httpClient.DefaultRequestHeaders.Add("If-None-Match", "\"{apiEtag}\"");
             }
 
             return httpClient;
