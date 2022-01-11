@@ -140,7 +140,7 @@ if [[ $(az group exists --resource-group "$resource_group_name" --output tsv) ==
     fi
 fi
 
-# Deploying Edgar...
+# Deploying the ARM template...
 
 subscription_id=$(az account show --query id --output tsv)
 arm_deployment_name="edgar-deploy-$p_deployment_name"
@@ -158,6 +158,8 @@ az deployment group create \
 
 function_app_name=$(az deployment group show --resource-group "$resource_group_name" --name "$arm_deployment_name" --query properties.outputs.functionAppName.value --output tsv);
 
+# Package up the function app for deployment...
+
 echo "📦    Packaging function app [$function_app_name] for deployment..."
 
 dotnet publish -c Release -o ./topublish ../Edgar/Edgar.Functions.csproj
@@ -166,6 +168,8 @@ cd ./topublish
 zip -r ../topublish.zip . >/dev/null
 cd ..
 
+# Push the deployment package up to the function app...
+
 echo "☁️    Publishing function app [$function_app_name]..."
 
 az functionapp deployment source config-zip \
@@ -173,6 +177,14 @@ az functionapp deployment source config-zip \
     --name "$function_app_name" \
     --src "./topublish.zip"
 
+# Instead of querying for candidate repos each time an operation is dispatched, Edgar maintains a map of all 
+# candidate repos it can access in blob storage. The [Refresh] function runs every five minutes by default and, if needed (based on etag),
+# will update the repo map. This process is eventually consistent as we don't expect the list of candidate repos
+# to change all that often. If the repo map is unavailable (it hasn't been created yet), the dispatch API will return a
+# 503 (Service Unavailable). To make sure that Edgar is ready to go as soon as this deployment script is done running,
+# we "prime" the repo map here by manually running the [Refresh] function as part of setup. Otherwise, it's possible
+# that Edgar will return 503s for the first five minutes after setup.
+ 
 echo "🗺️    Building initial repo map (repo_map.json)..."
 
 master_key_url="https://management.azure.com/subscriptions/$subscription_id/resourceGroups/$resource_group_name/providers/Microsoft.Web/sites/$function_app_name/host/default/listKeys?api-version=2018-11-01"
@@ -184,6 +196,8 @@ curl -v -X POST \
     -d "{ \"input\": \"test\" }" \
     "https://$function_app_name.azurewebsites.net/admin/functions/Refresh"
 
+# Leave only footsteps...
+
 echo "🧹   Cleaning up..."
 
 rm -rf ./topublish >/dev/null
@@ -192,10 +206,10 @@ rm -rf ./topublish.zip >/dev/null
 echo
 echo "Edgar Deployment Summary"
 echo
-echo "Name                          [$p_deployment_name]"
-echo "Azure Subscription ID         [$subscription_id]"
-echo "Azure Resource Group          [$resource_group_name]"
-echo "Dispatch Endpoint URL         [https://$function_app_name.azurewebsites.net/api/saas/{tenantId}/subscriptions/{subscriptionId}/{actionType}?code=$master_key]"
+echo "Name ........................ [$p_deployment_name]"
+echo "Azure Subscription ID ....... [$subscription_id]"
+echo "Azure Resource Group ........ [$resource_group_name]"
+echo "Dispatch Endpoint URL ....... [https://$function_app_name.azurewebsites.net/api/saas/{tenantId}/subscriptions/{subscriptionId}/{actionType}?code=$master_key]"
 echo
 echo "Setup took [$SECONDS] seconds."
 echo
