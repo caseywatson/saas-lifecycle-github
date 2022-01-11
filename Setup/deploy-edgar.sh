@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SECONDS=0 # Let's time it...
+
 usage() { echo "Usage: $0 <-n name> <-p github_pat> <-r deployment_region> [-o github_repo_owner]"; }
 
 check_az() {
@@ -49,7 +51,6 @@ check_deployment_name() {
 }
 
 splash() {
-    echo
     echo "E | vent"
     echo "D | riven"
     echo "G | itHub"
@@ -69,18 +70,15 @@ splash
 
 # Make sure all pre-reqs are installed...
 
-echo "Checking Edgar setup script prerequisites...";
+echo "Checking setup prerequisites...";
 
 check_az;           [[ $? -ne 0 ]] && prereq_check_failed=1
 check_dotnet;       [[ $? -ne 0 ]] && prereq_check_failed=1
 
 if [[ -z $prereq_check_failed ]]; then
-    echo
-    echo "✔   All Edgar setup prerequisites installed."
-    echo
+    echo "✔   All setup prerequisites installed."
 else
-    echo
-    echo "❌   Please install all Edgar setup prerequisites then try again. Setup failed."
+    echo "❌   Please install all setup prerequisites then try again."
     return 1
 fi
 
@@ -119,11 +117,8 @@ check_deployment_region $p_deployment_region;   [[ $? -ne 0 ]] && param_check_fa
 check_deployment_name $p_deployment_name;       [[ $? -ne 0 ]] && param_check_failed=1
 
 if [[ -z $param_check_failed ]]; then
-    echo
     echo "✔   All setup parameters are valid."
-    echo
 else
-    echo
     echo "❌   Parameter validation failed. Please review and try again."
     return 1
 fi
@@ -133,19 +128,14 @@ fi
 resource_group_name="edgar-$p_deployment_name"
 
 if [[ $(az group exists --resource-group "$resource_group_name" --output tsv) == false ]]; then
-    echo
     echo "Creating resource group [$resource_group_name]..."
-    echo
 
     az group create --location "$p_deployment_region" --name "$resource_group_name"
 
     if [[ $? -eq 0 ]]; then
-        echo
         echo "✔   Resource group [$resource_group_name] created."
-        echo
     else
-        echo
-        echo "❌   Unable to create resource group [$resource_group_name]. See above output for details. Setup failed."
+        echo "❌   Unable to create resource group [$resource_group_name]."
         exit 1
     fi
 fi
@@ -155,9 +145,7 @@ fi
 subscription_id=$(az account show --query id --output tsv)
 arm_deployment_name="edgar-deploy-$p_deployment_name"
 
-echo
-echo "Deploying Edgar [$p_deployment_name] to subscription [$subscription_id] resource group [$resource_group_name]..."
-echo
+echo "Deploying ARM template to subscription [$subscription_id] resource group [$resource_group_name]..."
 
 az deployment group create \
     --resource-group "$resource_group_name" \
@@ -170,9 +158,7 @@ az deployment group create \
 
 function_app_name=$(az deployment group show --resource-group "$resource_group_name" --name "$arm_deployment_name" --query properties.outputs.functionAppName.value --output tsv);
 
-echo
-echo "Preparing to publish Edgar function app [$function_app_name]..."
-echo
+echo "Packaging function app [$function_app_name] for deployment..."
 
 dotnet publish -c Release -o ./topublish ../Edgar/Edgar.Functions.csproj
 
@@ -180,18 +166,14 @@ cd ./topublish
 zip -r ../topublish.zip . >/dev/null
 cd ..
 
-echo
-echo "Publishing Edgar function app [$function_app_name]..."
-echo
+echo "Publishing function app [$function_app_name]..."
 
 az functionapp deployment source config-zip \
     --resource-group "$resource_group_name" \
     --name "$function_app_name" \
     --src "./topublish.zip"
 
-echo
-echo "Priming Edgar repo map..."
-echo
+echo "Building initial repo map (repo_map.json)..."
 
 master_key_url="https://management.azure.com/subscriptions/$subscription_id/resourceGroups/$resource_group_name/providers/Microsoft.Web/sites/$function_app_name/host/default/listKeys?api-version=2018-11-01"
 master_key=$(az rest --method post --uri "$master_key_url" --query masterKey)
@@ -201,6 +183,26 @@ curl -X POST \
     -H "x-functions-key: $master_key" \
     -d "{ \"input\": \"test\" }" \
     "https://$function_app_name.azurewebsites.net/admin/functions/Refresh"
+
+echo "Cleaning up..."
+
+rm -rf ./topublish >/dev/null
+rm -rf ./topublish.zip >/dev/null
+
+echo
+echo "Edgar Deployment Summary"
+echo
+echo "Name                          [$p_deployment_name]"
+echo "Azure Subscription ID         [$subscription_id]"
+echo "Azure Resource Group          [$resource_group_name]"
+echo "Dispatch Endpoint URL         [https://$function_app_name.azurewebsites.net/api/saas/{tenantId}/subscriptions/{subscriptionId}/{actionType}?code=$master_key]"
+echo
+echo "Setup took [$SECONDS] seconds."
+echo
+echo "Learn more about Edgar at [ https://github.com/caseywatson/edgar ]."
+
+
+
 
 
 
