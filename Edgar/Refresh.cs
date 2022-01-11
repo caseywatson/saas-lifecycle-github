@@ -135,7 +135,7 @@ namespace Edgar.Functions
                 // Apparently, you can use the ETag from the first page of GitHub results to determine if
                 // the entire result set (all the pages) has changed.
 
-                return httpResponse.Headers.GetValues(ApiEtagResponseHeaderName).First().Trim('"'); // What? Really? Why would I want the quotation marks?
+                return httpResponse.Headers.GetValues(ApiEtagResponseHeaderName).First();
             }
             else
             {
@@ -169,7 +169,7 @@ namespace Edgar.Functions
 
             if (!string.IsNullOrEmpty(apiEtag))
             {
-                httpClient.DefaultRequestHeaders.Add("If-None-Match", $"\"{apiEtag}\"");
+                httpClient.DefaultRequestHeaders.Add("If-None-Match", apiEtag);
             }
 
             return httpClient;
