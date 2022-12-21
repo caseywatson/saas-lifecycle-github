@@ -10,4 +10,16 @@ SLCG's design is based on the premise that SaaS ISVs should be spending the bulk
 
 ## How it works
 
+![SLCG Functions](slcg.png)
+
+| Function | Notes |
+| --- | --- | 
+| __Dispatch__ | [The Dispatch function](https://github.com/caseywatson/saas-lifecycle-github/blob/main/Edgar/Dispatch.cs) first [checks the repo map (❶) to see if there is a GitHub repo available to service the request](https://github.com/caseywatson/saas-lifecycle-github/blob/02761146764a98123d35bfb560f33339f9c2de09/Edgar/Dispatch.cs#L73). Then, it [stages the operation blob (❷) for tracking](https://github.com/caseywatson/saas-lifecycle-github/blob/02761146764a98123d35bfb560f33339f9c2de09/Edgar/Dispatch.cs#L130) and [invokes the appropriate GitHub Action (❸)](https://github.com/caseywatson/saas-lifecycle-github/blob/02761146764a98123d35bfb560f33339f9c2de09/Edgar/Dispatch.cs#L138). Finally, [it publishes a “Configuring” event (❾)](https://github.com/caseywatson/saas-lifecycle-github/blob/02761146764a98123d35bfb560f33339f9c2de09/Edgar/Dispatch.cs#L139). |
+| __Refresh__ | The Refresh function periodically takes an inventory of all accessible GitHub repos available to handle SaaS lifecycle operations (❹) and, if required, updates the repo map accordingly (❺). |
+| __Reconcile__ | The Reconcile function periodically attempts to reconcile outstanding operations (❻) with completed GitHub Action runs (❼). Once reconciled, the applicable operation blob is deleted, and the function publishes either a “Configuration Succeeded [or] Failed” event (❾). |
+| __Expire__ | The Expire function provides a self-healing capability that periodically checks for staged operation blobs that are more than 30 days old (❽). For each expired operation, the function deletes the operation blob and publishes a “Configuration Timed Out” event (❾). |
+
+
+
+
 
