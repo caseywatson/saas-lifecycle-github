@@ -1,8 +1,8 @@
 using Azure;
+using Azure.Messaging.EventGrid;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Edgar.Functions.Models;
-using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.Extensions.Logging;
@@ -98,14 +98,14 @@ namespace Edgar.Functions
         }
 
         private static EventGridEvent ToOperationTimedOutEvent(Models.Operation operation) =>
-            new EventGridEvent
+            new EventGridEvent(
+                $"/saas/tenants/{operation.TenantId}/subscriptions/{operation.SubscriptionId}",
+                EventTypeNames.SubscriptionConfigurationTimedOut,
+                OperationEvent.DataVersion,
+                new OperationEvent(operation))
             {
-                Data = new OperationEvent(operation),
-                DataVersion = OperationEvent.DataVersion,
                 EventTime = DateTime.UtcNow,
-                EventType = EventTypeNames.SubscriptionConfigurationTimedOut,
-                Id = Guid.NewGuid().ToString(),
-                Subject = $"/saas/tenants/{operation.TenantId}/subscriptions/{operation.SubscriptionId}"
+                Id = Guid.NewGuid().ToString()
             };
     }
 }

@@ -1,8 +1,8 @@
+using Azure.Messaging.EventGrid;
 using Azure.Storage.Blobs;
 using Edgar.Functions.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Azure.EventGrid.Models;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.Azure.WebJobs.Extensions.Http;
@@ -53,7 +53,7 @@ namespace Edgar.Functions
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
                 var opContainerName = Environment.GetEnvironmentVariable("OperationStorageContainerName");
                 var repoMapContainerName = Environment.GetEnvironmentVariable("RepoMapStorageContainerName");
-                var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwner");
 
                 var blobServiceClient = new BlobServiceClient(storageConnString);
                 var repoMapContainerClient = blobServiceClient.GetBlobContainerClient(repoMapContainerName);
@@ -156,15 +156,15 @@ namespace Edgar.Functions
         private static IActionResult WorkflowNotFound() =>
             new BadRequestObjectResult("No matching workflow found.");
 
-        private static EventGridEvent ToEventGridEvent(Operation operation) =>
-            new EventGridEvent
+        private static EventGridEvent ToEventGridEvent(Models.Operation operation) =>
+            new EventGridEvent(
+                $"/saas/tenants/{operation.TenantId}/subscriptions/{operation.SubscriptionId}",
+                EventTypeNames.SubscriptionConfiguring,
+                OperationEvent.DataVersion,
+                new OperationEvent(operation))
             {
-                Data = new OperationEvent(operation),
-                DataVersion = OperationEvent.DataVersion,
                 EventTime = DateTime.UtcNow,
-                EventType = EventTypeNames.SubscriptionConfiguring,
-                Id = Guid.NewGuid().ToString(),
-                Subject = $"/saas/tenants/{operation.TenantId}/subscriptions/{operation.SubscriptionId}"
+                Id = Guid.NewGuid().ToString()
             };
 
         private static HttpClient CreateGitHubHttpClient(string pat)

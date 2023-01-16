@@ -31,7 +31,7 @@ namespace Edgar.Functions
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
                 var containerName = Environment.GetEnvironmentVariable("RepoMapStorageContainerName");
-                var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwner");
 
                 // Try to pull an existing repo map from blob storage...
 
