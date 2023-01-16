@@ -16,13 +16,34 @@ check_az() {
 }
 
 check_dotnet() {
-    dotnet --version >/dev/null
+    dotnet_version=$(dotnet --version)
 
-    if [[ $? -ne 0 ]]; then
-        echo "❌   Please install .NET before continuing. See [https://dotnet.microsoft.com/download] for more information."
-        return 1
+    if [[ $dotnet_version == 6.* ]]; then # Needs to be .NET 6
+        echo "✔   .NET [$dotnet_version] installed."
     else
-        echo "✔   .NET installed."
+        read -p "⚠️  .NET 6 is required to run this script but is not installed. Would you like to install it now? [Y/n]" install_dotnet
+
+        case "$install_dotnet" in
+            [yY1]   )
+                wget https://dotnet.microsoft.com/download/dotnet/scripts/v1/dotnet-install.sh
+                chmod +x ./dotnet-install.sh
+                ./dotnet-install.sh 
+
+                if [[ $? == 0 ]]; then
+                    export PATH="$HOME/.dotnet:$PATH"
+                    dotnet_version=$(dotnet --version)
+                    echo "✔   .NET [$dotnet_version] installed."
+                    return 0
+                else
+                    echo "❌   .NET 6 installation failed. See [https://docs.microsoft.com/cli/azure/install-azure-cli] for more information."
+                    return 1
+                fi
+            ;;
+            *       )
+                echo "❌   Please install .NET 6 before continuing. See [https://docs.microsoft.com/cli/azure/install-azure-cli] for more information."
+                return 1
+            ;;
+        esac
     fi
 }
 
