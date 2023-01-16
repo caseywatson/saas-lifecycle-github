@@ -31,7 +31,7 @@ namespace Edgar.Functions
                 var pat = Environment.GetEnvironmentVariable("GitHubPat");
                 var storageConnString = Environment.GetEnvironmentVariable("StorageConnectionString");
                 var containerName = Environment.GetEnvironmentVariable("OperationStorageContainerName");
-                var repoOwner = Environment.GetEnvironmentVariable("RepoOwnerName");
+                var repoOwner = Environment.GetEnvironmentVariable("RepoOwner");
 
                 // Let's go see what operations are pending...
 
